@@ -2,7 +2,7 @@ from enum import Enum
 from abc import ABCMeta, abstractmethod
 import string
 
-fws = "blue"
+
 def lineContains(buffer,char):
     for c in buffer:
         if(c == '\n' or c==';' or c=='\"'):
@@ -28,23 +28,34 @@ class ColorStrategy:
     def open(self,color):
         raise NotImplementedError
     @abstractmethod
-    def close(self,color):
+    def close(self):
+        raise NotImplementedError
+    @abstractmethod
+    def newline(self,color):
         raise NotImplementedError
 class HtmlColorStrategy(ColorStrategy):
     def __init__(self,color):
         super().__init__(color)
-    def open(self):
+    def open(self,color):
+        self.color = color
         return "<font color=\"%s\">" % self.color
     def close(self):
         return "</font>"
+    def newline(self):
+        return "</br>"
 class AnsiColorStrategy(ColorStrategy):
+    Colors = {"black" : u"\u001b[97m", "gray":"\u001b[37m", "orange":"\u001b[33m", "yellow":"\u001b[93m", "red": "\u001b[31m", "green": "\u001b[32m",
+              "blue":"\u001b[36m", "bronze" : "\u001b[35m"}
     def __init__(self,color):
         super()
-    def open(self):
-        return ""
+    def open(self,color):
+        return AnsiColorStrategy.Colors[color]
     def close(self):
+        return "\u001b[0m"
+    def newline(self):
         return ""
-
+c = AnsiColorStrategy("black")
+fws = "blue"
 def FSMAssembly(buffer, state):
     result = []
     state = States.S_LSTART
@@ -55,11 +66,10 @@ def FSMAssembly(buffer, state):
         state = states[state](buffer,result)
     return result
 def StartState(buffer,result):
-    c = HtmlColorStrategy("black")
     global fws
     fws = "blue"
-    result += list("</br>")
-    result += list(c.open())
+    result += list(c.newline())
+    result += list(c.open("black"))
     while len(buffer):
         temp = buffer[0]
         if (temp not in " \t"):
@@ -70,8 +80,7 @@ def StartState(buffer,result):
     state = States.S_TEXT
     return state
 def TextState(buffer,result):
-    c = HtmlColorStrategy(fws)
-    result += list(c.open())
+    result += list(c.open(fws))
     char = buffer[0]
     state = States.S_TEXT
     if (char == ';'):
@@ -107,8 +116,7 @@ def TextState(buffer,result):
     return state
 
 def CommentState(buffer,result):
-    c = HtmlColorStrategy("green")
-    result += list(c.open())
+    result += list(c.open("green"))
     while (len(buffer)):
         temp = buffer[0]
         result.append(buffer[0])
@@ -118,8 +126,7 @@ def CommentState(buffer,result):
     result += list(c.close())
     return States.S_LSTART
 def ConstState(buffer,result):
-    c = HtmlColorStrategy("gray")
-    result += list(c.open())
+    result += list(c.open("gray"))
     while (len(buffer)):
         temp = buffer[0]
         if (temp not in string.hexdigits + "xX"):
@@ -129,15 +136,13 @@ def ConstState(buffer,result):
     result += list(c.close())
     return States.S_TEXT
 def BlackState(buffer,result):
-    c = HtmlColorStrategy("black")
-    result += list(c.open())
+    result += list(c.open("black"))
     result.append(buffer[0])
     buffer.pop(0)
     result += list(c.close())
     return States.S_TEXT
 def StringState(buffer,result):
-    c = HtmlColorStrategy("red")
-    result += list(c.open())
+    result += list(c.open("red"))
     second = 0
     while (len(buffer)):
         temp = buffer[0]
@@ -150,8 +155,7 @@ def StringState(buffer,result):
     result += list(c.close())
     return States.S_TEXT
 def PointerState(buffer,result):
-    c = HtmlColorStrategy("gray")
-    result += list(c.open())
+    result += list(c.open("gray"))
     while (len(buffer)):
         temp = buffer[0]
         result.append(buffer[0])
@@ -171,8 +175,7 @@ def CCHangeState(buffer,result):
     fws = "bronze"
     return States.S_TEXT
 def LabelState(buffer, result):
-    c2 = HtmlColorStrategy("orange")
-    result += list(c2.open())
+    result += list(c.open("orange"))
     while (len(buffer)):
         temp = buffer[0]
         result.append(buffer[0])
@@ -180,7 +183,7 @@ def LabelState(buffer, result):
         if (temp == ':'):
             break
     state = States.S_TEXT
-    result += list(c2.close())
+    result += list(c.close())
     return state
 
 
@@ -221,5 +224,6 @@ section .text
         int     0x80
 """
 res = FSMAssembly(list(code),States.S_LSTART)
-f = open("dump.html","w")
-f.write("".join(res))
+print("".join(res))
+#f = open("dump.html","w")
+#f.write("".join(res))
